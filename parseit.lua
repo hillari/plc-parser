@@ -1,128 +1,285 @@
 #!/usr/bin/env lua5.3
 -- useparseit.lua
--- Glenn G. Chappell
+-- Glenn G. Chappell and Hillari M. Denny
 -- 2020-02-19
+-- 
+-- 03-01-2020
 --
 -- For CS F331 / CSCE A331 Spring 2020
 -- Simple Main Program for parseit Module
--- Requires parseit.lua
-
-parseit = require "parseit"
+-- Requires lexit.lua
 
 
--- String forms of symbolic constants
--- Used by writeAST_parseit
-symbolNames = {
-  [1]="STMT_LIST",
-  [2]="PRINT_STMT",
-  [3]="FUNC_DEF",
-  [4]="FUNC_CALL",
-  [5]="IF_STMT",
-  [6]="WHILE_STMT",
-  [7]="RETURN_STMT",
-  [8]="ASSN_STMT",
-  [9]="STRLIT_OUT",
-  [10]="CHAR_CALL",
-  [11]="BIN_OP",
-  [12]="UN_OP",
-  [13]="NUMLIT_VAL",
-  [14]="BOOLLIT_VAL",
-  [15]="READNUM_CALL",
-  [16]="SIMPLE_VAR",
-  [17]="ARRAY_VAR",
-}
+local parseit = {}  -- Module for parser
+
+local lexit = require "lexit"  -- Importing our lexer for use in parsing
 
 
--- writeAST_parseit
--- Write an AST, in (roughly) Lua form, with numbers replaced by the
--- symbolic constants used in parseit.
--- A table is assumed to represent an array.
--- See the Assignment 4 description for the AST Specification.
-function writeAST_parseit(x)
-    if type(x) == "number" then
-        local name = symbolNames[x]
-        if name == nil then
-            io.write("<ERROR: Unknown constant: "..x..">")
-        else
-            io.write(name)
-        end
-    elseif type(x) == "string" then
-        io.write('"'..x..'"')
-    elseif type(x) == "boolean" then
-        if x then
-            io.write("true")
-        else
-            io.write("false")
-        end
-    elseif type(x) == "table" then
-        local first = true
-        io.write("{")
-        for k = 1, #x do  -- ipairs is problematic
-            if not first then
-                io.write(", ")
-            end
-            writeAST_parseit(x[k])
-            first = false
-        end
-        io.write("}")
-    elseif type(x) == "nil" then
-        io.write("nil")
+-- Variables
+
+-- For lexer iteration
+local iter          -- Iterator returned by lexit.lex
+local state         -- State for above iterator (maybe not used)
+local lexer_out_s   -- Return value #1 (lexstr) from above iterator
+local lexer_out_c   -- Return value #2 (category) from above iterator
+
+-- For current lexeme
+local lexstr = ""   -- String form of current lexeme
+local lexcat = 0    -- Category of current lexeme:
+                    --  one of categories below, or 0 for past the end
+
+
+-- Symbolic Constants for AST
+
+local STMT_LIST   = 1
+local PRINT_STMT  = 2
+local FUNC_DEF    = 3
+local FUNC_CALL   = 4
+local IF_STMT     = 5
+local WHILE_STMT  = 6
+local RETURN_STMT = 7
+local ASSN_STMT   = 8
+local STRLIT_OUT  = 9
+local CHAR_CALL   = 10
+local BIN_OP      = 11
+local UN_OP       = 12
+local NUMLIT_VAL  = 13
+local BOOLLIT_VAL = 14
+local INPUT_CALL  = 15
+local SIMPLE_VAR  = 16
+local ARRAY_VAR   = 17
+
+-- Utility Functions
+
+-- advance
+-- Go to next lexeme and load it into lexstr, lexcat.
+-- Should be called once before any parsing is done.
+-- Function init must be called before this function is called.
+local function advance()
+    -- Advance the iterator
+    lexer_out_s, lexer_out_c = iter(state, lexer_out_s)
+
+    -- If we're not past the end, copy current lexeme into vars
+    if lexer_out_s ~= nil then
+        lexstr, lexcat = lexer_out_s, lexer_out_c
     else
-        io.write("<ERROR: "..type(x)..">")
+        lexstr, lexcat = "", 0
     end
 end
 
 
--- check
--- Given a "program", check its syntactic correctness using parseit.
--- Print results.
-function check(program)
-    dashstr = "-"
-    io.write(dashstr:rep(72).."\n")
-    io.write("Program: "..program.."\n")
+-- init
+-- Initial call. Sets input for parsing functions.
+local function init(prog)
+    iter, state, lexer_out_s = lexit.lex(prog)
+    advance()
+end
 
-    local good, done, ast = parseit.parse(program)
 
-    if good and done then
-        io.write("AST: ")
-        writeAST_parseit(ast)
-        io.write("\n")
-    elseif good and not done then
-        io.write("Bad - extra characters at end\n")
-    elseif not good and done then
-        io.write("Unfinished - please add more\n")
-    else  -- not good and not done
-        io.write("Bad - syntax error\n")
+-- atEnd
+-- Return true if pos has reached end of input.
+-- Function init must be called before this function is called.
+local function atEnd()
+    return lexcat == 0
+end
+
+
+-- matchString
+-- Given string, see if current lexeme string form is equal to it. If
+-- so, then advance to next lexeme & return true. If not, then do not
+-- advance, return false.
+-- Function init must be called before this function is called.
+local function matchString(s)
+    if lexstr == s then
+        advance()
+        return true
+    else
+        return false
     end
 end
 
 
--- Main program
--- Check several "programs".
-io.write("Recursive-Descent Parser: Degu\n")
-check("")
-check("print()")
-check("print(a)")
-check("print(a) print(b) print('\\n')")
-check("print(a, b, '\\n')")
-check("print('abc')")
-check("a=3")
-check("a=a+1")
-check("a=input()")
-check("print(a+1)")
-check("func f()print('yo')end f()")
-check("a=3print(a+b,'\\n')")
-check("a[e*2+1]=2")
-check("\n  # Degu Example #1\n  # Glenn G. Chappell\n  # 2020-02-06\n  nn = 3\n  print(nn, '\\n')\n")
-io.write("### Above should be the AST given in the Assignment 4 description,\n")
-io.write("### under 'Introduction'\n")
-check("print()elif")
-io.write("### Above should be ")
-io.write("\"Bad - extra characters at end\"\n")
-check("func foo() print('\\n'")
-io.write("### Above should be ")
-io.write("\"Unfinished - please add more\"\n")
-check("if a b c")
-io.write("### Above should be ")
-io.write("\"Bad - syntax error\"\n")
+-- matchCat
+-- Given lexeme category (integer), see if current lexeme category is
+-- equal to it. If so, then advance to next lexeme & return true. If
+-- not, then do not advance, return false.
+-- Function init must be called before this function is called.
+local function matchCat(c)
+    if lexcat == c then
+        advance()
+        return true
+    else
+        return false
+    end
+end
 
+
+
+-------------- Primary Function for Client Code -------------------
+
+-- "local" statements for parsing functions
+local parse_expr
+local parse_term
+local parse_factor
+
+local parse_program
+local parse_stmt_list
+local parse_statement
+
+-- parse
+-- Given program, initialize parser and call parsing function for start
+-- symbol. Returns pair of booleans & AST. First boolean indicates
+-- successful parse or not. Second boolean indicates whether the parser
+-- reached the end of the input or not. AST is only valid if first
+-- boolean is true.
+function parseit.parse(prog)
+    -- Initialization
+    init(prog)
+
+    -- Get results from parsing
+    local good, ast = parse_program()  -- Parse start symbol
+    local done = atEnd()
+
+    -- And return them
+    return good, done, ast
+end
+
+
+-- Parsing Functions
+
+-- Each of the following is a parsing function for a nonterminal in the
+-- grammar. Each function parses the nonterminal in its name and returns
+-- a pair: boolean, AST. On a successul parse, the boolean is true, the
+-- AST is valid, and the current lexeme is just past the end of the
+-- string the nonterminal expanded into. Otherwise, the boolean is
+-- false, the AST is not valid, and no guarantees are made about the
+-- current lexeme. 
+
+-- NOTE. Declare parsing functions "local" above, but not below. This
+-- allows them to be called before their definitions.
+
+-- parse_program
+-- Parsing function for nonterminal "program".
+-- Function init must be called before this function is called.
+function parse_program()
+    local good, ast
+
+    good, ast = parse_stmt_list()
+    return good, ast
+end
+
+
+-- parse_stmt_list
+-- Parsing function for nonterminal "stmt_list".
+-- Function init must be called before this function is called.
+function parse_stmt_list()
+    local good, ast, newast
+
+    ast = { STMT_LIST }
+    while true do
+        if lexstr ~= "print"
+          and lexstr ~= "func"
+          and lexstr ~= "if"
+          and lexstr ~= "while"
+          and lexstr ~= "return"
+          and lexcat ~= lexit.ID then
+            return true, ast
+        end
+
+        good, newast = parse_statement()
+        if not good then
+            return false, nil
+        end
+
+        table.insert(ast, newast)
+    end
+end
+
+-- parse_expr
+-- Parsing function for nonterminal "expr".
+-- Function init must be called before this function is called.
+function parse_expr()
+    local good, ast, saveop, newast
+
+    good, ast = parse_term()
+    if not good then
+        return false, nil
+    end
+
+    while true do
+        saveop = lexstr
+        if not matchString("+") and not matchString("-") then
+            break
+        end
+
+        good, newast = parse_term()
+        if not good then
+            return false, nil
+        end
+
+        ast = { { BIN_OP, saveop }, ast, newast }
+    end
+
+    return true, ast
+end
+
+
+-- parse_term
+-- Parsing function for nonterminal "term".
+-- Function init must be called before this function is called.
+function parse_term()
+    local good, ast, saveop, newast
+
+    good, ast = parse_factor()
+    if not good then
+        return false, nil
+    end
+
+    while true do
+        saveop = lexstr
+        if not matchString("*") and not matchString("/") then
+            break
+        end
+
+        good, newast = parse_factor()
+        if not good then
+            return false, nil
+        end
+
+        ast = { { BIN_OP, saveop }, ast, newast }
+    end
+
+    return true, ast
+end
+
+
+-- parse_factor
+-- Parsing function for nonterminal "factor".
+-- Function init must be called before this function is called.
+function parse_factor()
+    local savelex, good, ast
+
+    savelex = lexstr
+    if matchCat(lexit.ID) then
+        return true, { SIMPLE_VAR, savelex }
+    elseif matchCat(lexit.NUMLIT) then
+        return true, { NUMLIT_VAL, savelex }
+    elseif matchString("(") then
+        good, ast = parse_expr()
+        if not good then
+            return false, nil
+        end
+
+        if not matchString(")") then
+            return false, nil
+        end
+
+        return true, ast
+    else
+        return false, nil
+    end
+end
+
+
+
+return parseit  -- Export our module 
