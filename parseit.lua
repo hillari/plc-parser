@@ -101,6 +101,11 @@ local function matchString(s)
 end
 
 
+local function getLexeme(l)
+    return lexstr
+end
+
+
 -- matchCat
 -- Given lexeme category (integer), see if current lexeme category is
 -- equal to it. If so, then advance to next lexeme & return true. If
@@ -127,6 +132,9 @@ local parse_factor
 local parse_program
 local parse_stmt_list
 local parse_statement
+local parse_print_arg
+local parse_comp_expr
+local parse_arith_expr
 
 -- parse
 -- Given program, initialize parser and call parsing function for start
@@ -184,7 +192,7 @@ function parse_stmt_list()
           and lexstr ~= "if"
           and lexstr ~= "while"
           and lexstr ~= "return" 
-          and lexcat ~= lexit.ID then
+          and lexcat ~= lexit.ID then  -- TODO can't pass "ID only case" since im missing other functions that use ID
             return true, ast
         end
 
@@ -198,8 +206,9 @@ function parse_stmt_list()
 end
 
 function parse_statement()
-    local good, ast1, ast1
+    local good, ast1, ast1, savelex, arrayflag
 
+    savelex = lexstr
     if matchString("print") then
         if not matchString("(") then
             return false, nil
@@ -216,7 +225,7 @@ function parse_statement()
 
         ast2 = { PRINT_STMT, ast1 }
 
-        while matchString(",") do
+        while matchString(",") do  -- to handle multiple print args
             good, ast1 = parse_print_arg()
             if not good then
                 return false, nil
@@ -229,10 +238,47 @@ function parse_statement()
             return false, nil
         end
         
-        return true, ast2         
+        return true, ast2  
 
-    end -- end print statement logic 
+        -- TODO how to handle ID? can start with (, =, [
+    elseif matchCat(lexit.ID) then  -- ONLY THING IT CAN BE NOW IS FUNC CALL OR ERR
+        -- print("2LEXEME IS: "..lexstr)
+        -- print("2SAVELEX IS: "..savelex)
+        if not matchString("(") then
+            return false, nil
+        end
+        if not matchString(")") then
+            return false, nil
+        end
 
+        return true, { FUNC_CALL, savelex}
+    end
+
+
+    -- elseif matchString("func") then 
+    --     savelex = lexstr
+    --     print("LEXEME IS: "..lexstr)
+    --     if matchCat(lexit.ID) then
+    --         if not matchString("(") then
+    --             return false, nil -- we have just foo(
+    --         end
+
+    --         if matchString(")") then -- now we have at least foo()
+    --             while not matchString("end") do
+    --                 good, ast1 = parse_stmt_list()  -- get all the statements in the function
+    --                 if not good then
+    --                     return false, nil
+    --                 end
+    --             end  -- end while
+    --             print("LEXEME IS: "..lexstr)
+
+    --         end
+
+    --     else
+    --         return false, nil -- we have just "func"
+    --     end
+    -- end
+                
 
 end
 
