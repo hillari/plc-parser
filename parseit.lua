@@ -192,7 +192,7 @@ function parse_stmt_list()
           and lexstr ~= "if"
           and lexstr ~= "while"
           and lexstr ~= "return" 
-          and lexcat ~= lexit.ID then  -- TODO can't pass "ID only case" since im missing other functions that use ID
+          and lexcat ~= lexit.ID then  
             return true, ast
         end
 
@@ -206,7 +206,7 @@ function parse_stmt_list()
 end
 
 function parse_statement()
-    local good, ast1, ast1, savelex, arrayflag
+    local good, ast1, ast2, savelex, arrayflag
 
     savelex = lexstr
     if matchString("print") then
@@ -241,7 +241,7 @@ function parse_statement()
         return true, ast2  
 
         -- TODO how to handle ID? can start with (, =, [
-    elseif matchCat(lexit.ID) then  -- ONLY THING IT CAN BE NOW IS FUNC CALL OR ERR
+    elseif matchCat(lexit.ID) then  -- currently we only check for function call
         -- print("2LEXEME IS: "..lexstr)
         -- print("2SAVELEX IS: "..savelex)
         if not matchString("(") then
@@ -250,8 +250,36 @@ function parse_statement()
         if not matchString(")") then
             return false, nil
         end
-
         return true, { FUNC_CALL, savelex}
+
+
+----- function definition 
+-- ** FAILING defs with expressions
+    elseif matchString("func") then
+        savelex = lexstr  -- this gets me the function name correctly I think
+        if not matchCat(lexit.ID) then -- do we need to  save the ast1 here and do ast2 later?
+            return false, nil
+        end
+
+        if not matchString("(") then
+            return false, nil
+        end
+        if not matchString(")") then
+            return false, nil
+        end
+        -- print("2SAVELEX IS: "..savelex)
+        ast2 = { FUNC_DEF, savelex }
+        while not matchString("end") do
+            good, ast1 = parse_stmt_list()
+            if not good then
+                return false, nil
+            end
+
+            table.insert(ast2, ast1) -- insert ast1 at the end of ast2. 
+        end
+        return true, ast2  -- im missing statement list at the end? 
+
+
     end
 
 
@@ -283,7 +311,7 @@ function parse_statement()
 end
 
 
-function parse_print_arg()
+function parse_print_arg()  -- Currently only checking for string literals
     local good, ast, savelex
 
 
