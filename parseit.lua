@@ -1,14 +1,16 @@
-#!/usr/bin/env lua5.3
--- useparseit.lua
--- Glenn G. Chappell and Hillari M. Denny
--- 2020-02-19
--- 
+-- Hillari M Denny
+-- CSCE A331 - PLC
+-- Assignment 4 - Lua Recursive Descent Parser
+
+-- =====================================================================
+-- parseit.lua
+-- @ Glen G. Chappell, Hillari M. Denny
 -- 03-01-2020
 --
--- For CS F331 / CSCE A331 Spring 2020
--- Simple Main Program for parseit Module
 -- Requires lexit.lua
-
+-- This program implements a recursive descent parser in Lua. 
+--
+-- =====================================================================
 
 local parseit = {}  -- Module for parser
 
@@ -19,7 +21,7 @@ local lexit = require "lexit"  -- Importing our lexer for use in parsing
 
 -- For lexer iteration
 local iter          -- Iterator returned by lexit.lex
-local state         -- State for above iterator (maybe not used)
+-- local state         -- State for above iterator (maybe not used)
 local lexer_out_s   -- Return value #1 (lexstr) from above iterator
 local lexer_out_c   -- Return value #2 (category) from above iterator
 
@@ -176,12 +178,12 @@ function parse_stmt_list()
     local good, ast, newast
 
     ast = { STMT_LIST }
-    while true do
+    while true do  -- this is how we know stmt list is done
         if lexstr ~= "print"
           and lexstr ~= "func"
           and lexstr ~= "if"
           and lexstr ~= "while"
-          and lexstr ~= "return"
+          and lexstr ~= "return" 
           and lexcat ~= lexit.ID then
             return true, ast
         end
@@ -193,6 +195,61 @@ function parse_stmt_list()
 
         table.insert(ast, newast)
     end
+end
+
+function parse_statement()
+    local good, ast1, ast1
+
+    if matchString("print") then
+        if not matchString("(") then
+            return false, nil
+        end
+
+        if matchString(")") then
+            return true, { PRINT_STMT } -- we know we have a valid print statement now, add to list
+        end
+
+        good, ast1 = parse_print_arg()  -- now we need to parse the print argument
+        if not good then
+            return false, nil
+        end
+
+        ast2 = { PRINT_STMT, ast1 }
+
+        while matchString(",") do
+            good, ast1 = parse_print_arg()
+            if not good then
+                return false, nil
+            end
+
+            table.insert(ast2, ast1)
+        end
+
+        if not matchString(")") then -- ?? why do we have this here??
+            return false, nil
+        end
+        
+        return true, ast2         
+
+    end -- end print statement logic 
+
+
+end
+
+
+function parse_print_arg()
+    local good, ast, savelex
+
+
+    savelex = lexstr
+    if matchCat(lexit.STRLIT) then 
+        return true, { STRLIT_OUT, savelex }  -- Print argument, string literal
+    else
+        return false, nil
+    end
+
+
+
 end
 
 -- parse_expr
@@ -259,7 +316,7 @@ end
 function parse_factor()
     local savelex, good, ast
 
-    savelex = lexstr
+    savelex = lexstr -- because matchCat advances and we don't want to 'lose' the current lexeme
     if matchCat(lexit.ID) then
         return true, { SIMPLE_VAR, savelex }
     elseif matchCat(lexit.NUMLIT) then
